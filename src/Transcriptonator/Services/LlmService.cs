@@ -67,7 +67,7 @@ public class LlmService : ILlmService, IDisposable
     {
         var sb = new StringBuilder();
         sb.AppendLine("<|system|>");
-        sb.AppendLine("You are a helpful assistant that answers questions based on transcribed audio content. Use the provided context to answer the question. If the context doesn't contain relevant information, say so.");
+        sb.AppendLine("You are a helpful assistant that answers questions based on transcribed audio content. Use the provided context to answer the question. Always cite the exact source file path when referencing information. If the context doesn't contain relevant information, say so.");
         sb.AppendLine("<|end|>");
 
         sb.AppendLine("<|user|>");
@@ -76,7 +76,7 @@ public class LlmService : ILlmService, IDisposable
 
         foreach (var result in context)
         {
-            sb.AppendLine($"[Source: {result.FileName}, Relevance: {result.Similarity:P0}]");
+            sb.AppendLine($"[Source: {result.SourceFilePath} ({result.FileName}), Relevance: {result.Similarity:P0}]");
             sb.AppendLine(result.Chunk.Text);
             sb.AppendLine();
         }

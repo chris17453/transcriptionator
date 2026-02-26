@@ -22,7 +22,7 @@
             <TabItem Header="Transcriptions">
                 <views:TranscriptionsView DataContext="{Binding Transcriptions}" />
             </TabItem>
-            <TabItem Header="Search">
+            <TabItem Header="AI Search">
                 <views:SearchView DataContext="{Binding Search}" />
             </TabItem>
             <TabItem Header="Settings">

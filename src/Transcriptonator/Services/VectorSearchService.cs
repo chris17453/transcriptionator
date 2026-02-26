@@ -39,7 +39,12 @@ public class VectorSearchService : IVectorSearchService
             var similarity = TensorPrimitives.CosineSimilarity(queryEmbedding, chunkEmbedding);
             var fileName = Path.GetFileName(chunk.ProcessedFile.FilePath);
 
-            results.Add(new SearchResult(chunk, fileName, similarity));
+            results.Add(new SearchResult(
+                chunk,
+                fileName,
+                chunk.ProcessedFile.FilePath,
+                chunk.ProcessedFile.TranscriptionPath,
+                similarity));
         }
 
         return results

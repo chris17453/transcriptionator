@@ -2,7 +2,12 @@ using Transcriptonator.Models;
 
 namespace Transcriptonator.Services;
 
-public record SearchResult(TranscriptionChunk Chunk, string FileName, double Similarity);
+public record SearchResult(
+    TranscriptionChunk Chunk,
+    string FileName,
+    string SourceFilePath,
+    string TranscriptionPath,
+    double Similarity);
 
 public interface IVectorSearchService
 {

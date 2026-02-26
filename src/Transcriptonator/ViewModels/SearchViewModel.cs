@@ -27,6 +27,15 @@ public partial class SearchViewModel : ViewModelBase
     [ObservableProperty]
     private string _statusText = "Enter a query to search transcriptions";
 
+    [ObservableProperty]
+    private SearchResultItem? _selectedResult;
+
+    [ObservableProperty]
+    private string _sourceTranscriptionText = string.Empty;
+
+    [ObservableProperty]
+    private string _sourceHeaderText = string.Empty;
+
     public ObservableCollection<SearchResultItem> SearchResults { get; } = new();
 
     public SearchViewModel(IVectorSearchService vectorSearchService, ILlmService llmService, IConfigService configService)
@@ -34,6 +43,34 @@ public partial class SearchViewModel : ViewModelBase
         _vectorSearchService = vectorSearchService;
         _llmService = llmService;
         _configService = configService;
+    }
+
+    partial void OnSelectedResultChanged(SearchResultItem? value)
+    {
+        if (value == null)
+        {
+            SourceTranscriptionText = string.Empty;
+            SourceHeaderText = string.Empty;
+            return;
+        }
+
+        SourceHeaderText = $"Source: {value.SourceFilePath}";
+
+        try
+        {
+            if (File.Exists(value.TranscriptionPath))
+            {
+                SourceTranscriptionText = File.ReadAllText(value.TranscriptionPath);
+            }
+            else
+            {
+                SourceTranscriptionText = "(Transcription file not found at: " + value.TranscriptionPath + ")";
+            }
+        }
+        catch (Exception ex)
+        {
+            SourceTranscriptionText = $"Error reading transcription: {ex.Message}";
+        }
     }
 
     [RelayCommand(IncludeCancelCommand = true)]
@@ -44,6 +81,7 @@ public partial class SearchViewModel : ViewModelBase
         IsSearching = true;
         SearchResults.Clear();
         LlmAnswer = string.Empty;
+        SelectedResult = null;
         StatusText = "Searching...";
 
         try
@@ -56,7 +94,10 @@ public partial class SearchViewModel : ViewModelBase
                 SearchResults.Add(new SearchResultItem
                 {
                     FileName = result.FileName,
+                    SourceFilePath = result.SourceFilePath,
+                    TranscriptionPath = result.TranscriptionPath,
                     Similarity = result.Similarity,
+                    ChunkText = result.Chunk.Text,
                     TextPreview = result.Chunk.Text.Length > 200
                         ? result.Chunk.Text[..200] + "..."
                         : result.Chunk.Text
@@ -69,6 +110,9 @@ public partial class SearchViewModel : ViewModelBase
                 IsSearching = false;
                 return;
             }
+
+            // Auto-select first result to show its source
+            SelectedResult = SearchResults[0];
 
             // Load LLM if needed
             if (!_llmService.IsModelLoaded)
@@ -109,7 +153,10 @@ public partial class SearchViewModel : ViewModelBase
 public class SearchResultItem
 {
     public string FileName { get; set; } = string.Empty;
+    public string SourceFilePath { get; set; } = string.Empty;
+    public string TranscriptionPath { get; set; } = string.Empty;
     public double Similarity { get; set; }
     public string SimilarityDisplay => $"{Similarity:P0}";
+    public string ChunkText { get; set; } = string.Empty;
     public string TextPreview { get; set; } = string.Empty;
 }

@@ -5,7 +5,7 @@
              x:DataType="vm:SearchViewModel">
 
     <DockPanel Margin="16">
-        <TextBlock DockPanel.Dock="Top" Text="Semantic Search" FontSize="20" FontWeight="Bold"
+        <TextBlock DockPanel.Dock="Top" Text="AI Search" FontSize="20" FontWeight="Bold"
                    Margin="0,0,0,8" />
 
         <!-- Search bar -->
@@ -32,26 +32,33 @@
             <TextBlock Text="Loading LLM..." VerticalAlignment="Center" />
         </StackPanel>
 
-        <Grid ColumnDefinitions="350,8,*">
-            <!-- Left: Search results -->
+        <!-- Main content: three columns -->
+        <Grid ColumnDefinitions="300,8,*,8,350" RowDefinitions="*">
+
+            <!-- Left: Search results list -->
             <DockPanel Grid.Column="0">
                 <TextBlock DockPanel.Dock="Top" Text="Results" FontWeight="SemiBold"
                            Margin="0,0,0,4" />
                 <ListBox ItemsSource="{Binding SearchResults}"
+                         SelectedItem="{Binding SelectedResult}"
                          BorderBrush="Gray" BorderThickness="1">
                     <ListBox.ItemTemplate>
                         <DataTemplate>
-                            <StackPanel Margin="4">
+                            <StackPanel Margin="4" Spacing="2">
                                 <DockPanel>
                                     <TextBlock Text="{Binding FileName}" FontWeight="SemiBold" />
                                     <TextBlock Text="{Binding SimilarityDisplay}"
                                                HorizontalAlignment="Right"
-                                               Foreground="Green" />
+                                               Foreground="Green" FontWeight="SemiBold" />
                                 </DockPanel>
+                                <TextBlock Text="{Binding SourceFilePath}"
+                                           FontSize="10" Foreground="Gray"
+                                           TextTrimming="CharacterEllipsis" />
                                 <TextBlock Text="{Binding TextPreview}"
                                            TextWrapping="Wrap"
                                            FontSize="11" Foreground="Gray"
-                                           MaxLines="3" />
+                                           MaxLines="3"
+                                           Margin="0,2,0,0" />
                             </StackPanel>
                         </DataTemplate>
                     </ListBox.ItemTemplate>
@@ -60,9 +67,26 @@
 
             <GridSplitter Grid.Column="1" ResizeDirection="Columns" />
 
-            <!-- Right: LLM Answer -->
+            <!-- Center: Source transcription from the exact file -->
             <DockPanel Grid.Column="2">
-                <TextBlock DockPanel.Dock="Top" Text="Answer" FontWeight="SemiBold"
+                <TextBlock DockPanel.Dock="Top" Text="Source Transcription" FontWeight="SemiBold"
+                           Margin="0,0,0,4" />
+                <TextBlock DockPanel.Dock="Top" Text="{Binding SourceHeaderText}"
+                           FontSize="11" Foreground="Gray"
+                           TextTrimming="CharacterEllipsis"
+                           Margin="0,0,0,4" />
+                <TextBox Text="{Binding SourceTranscriptionText}"
+                         IsReadOnly="True"
+                         AcceptsReturn="True"
+                         TextWrapping="Wrap"
+                         BorderBrush="Gray" BorderThickness="1" />
+            </DockPanel>
+
+            <GridSplitter Grid.Column="3" ResizeDirection="Columns" />
+
+            <!-- Right: LLM Answer -->
+            <DockPanel Grid.Column="4">
+                <TextBlock DockPanel.Dock="Top" Text="AI Answer" FontWeight="SemiBold"
                            Margin="0,0,0,4" />
                 <TextBox Text="{Binding LlmAnswer}"
                          IsReadOnly="True"
