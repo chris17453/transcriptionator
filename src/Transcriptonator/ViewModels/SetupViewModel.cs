@@ -34,6 +34,9 @@ public partial class SetupViewModel : ViewModelBase
     [ObservableProperty]
     private string _llmStatus = "Pending";
 
+    [ObservableProperty]
+    private bool _canRetry;
+
     public SetupViewModel(IModelManagerService modelManager, IConfigService configService, Action onSetupComplete)
     {
         _modelManager = modelManager;
@@ -45,6 +48,7 @@ public partial class SetupViewModel : ViewModelBase
     private async Task StartDownloadAsync(CancellationToken ct)
     {
         IsDownloading = true;
+        CanRetry = false;
         var config = _configService.Load();
 
         try
@@ -54,10 +58,7 @@ public partial class SetupViewModel : ViewModelBase
             {
                 WhisperStatus = "Downloading...";
                 StatusText = $"Downloading Whisper {config.WhisperModelSize} model...";
-                var whisperProgress = new Progress<double>(p =>
-                {
-                    WhisperProgress = p;
-                });
+                var whisperProgress = new Progress<double>(p => WhisperProgress = p);
                 await _modelManager.DownloadWhisperModelAsync(config.WhisperModelSize, whisperProgress, ct);
             }
             WhisperProgress = 1.0;
@@ -68,10 +69,7 @@ public partial class SetupViewModel : ViewModelBase
             {
                 OnnxStatus = "Downloading...";
                 StatusText = "Downloading embedding model...";
-                var onnxProgress = new Progress<double>(p =>
-                {
-                    OnnxProgress = p;
-                });
+                var onnxProgress = new Progress<double>(p => OnnxProgress = p);
                 await _modelManager.DownloadOnnxModelAsync(onnxProgress, ct);
             }
             OnnxProgress = 1.0;
@@ -82,10 +80,7 @@ public partial class SetupViewModel : ViewModelBase
             {
                 LlmStatus = "Downloading...";
                 StatusText = "Downloading Phi-3 LLM...";
-                var llmProgress = new Progress<double>(p =>
-                {
-                    LlmProgress = p;
-                });
+                var llmProgress = new Progress<double>(p => LlmProgress = p);
                 await _modelManager.DownloadLlmModelAsync(llmProgress, ct);
             }
             LlmProgress = 1.0;
@@ -98,14 +93,25 @@ public partial class SetupViewModel : ViewModelBase
         catch (OperationCanceledException)
         {
             StatusText = "Download cancelled.";
+            MarkInProgressAsFailed();
+            CanRetry = true;
         }
         catch (Exception ex)
         {
-            StatusText = $"Error: {ex.Message}";
+            StatusText = $"Download failed: {ex.Message}";
+            MarkInProgressAsFailed();
+            CanRetry = true;
         }
         finally
         {
             IsDownloading = false;
         }
+    }
+
+    private void MarkInProgressAsFailed()
+    {
+        if (WhisperStatus == "Downloading...") WhisperStatus = "Failed";
+        if (OnnxStatus == "Downloading...") OnnxStatus = "Failed";
+        if (LlmStatus == "Downloading...") LlmStatus = "Failed";
     }
 }

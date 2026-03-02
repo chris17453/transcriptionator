@@ -47,7 +47,14 @@
             <!-- Status -->
             <TextBlock Text="{Binding StatusText}"
                        HorizontalAlignment="Center"
-                       FontSize="14" />
+                       FontSize="14"
+                       TextWrapping="Wrap" />
+
+            <Button Content="Retry Download"
+                    Command="{Binding StartDownloadCommand}"
+                    IsVisible="{Binding CanRetry}"
+                    HorizontalAlignment="Center"
+                    Padding="24,8" />
         </StackPanel>
     </Border>
 </UserControl>

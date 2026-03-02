@@ -5,6 +5,7 @@
         x:Class="Transcriptonator.Views.MainWindow"
         x:DataType="vm:MainWindowViewModel"
         Title="Transcriptonator"
+        Icon="avares://Transcriptonator/Assets/app.png"
         Width="1200" Height="800"
         MinWidth="900" MinHeight="600">
 

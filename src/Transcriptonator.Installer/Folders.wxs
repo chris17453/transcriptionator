@@ -14,7 +14,8 @@
         <Shortcut Id="ApplicationStartMenuShortcut"
                   Name="Transcriptonator"
                   Target="[INSTALLFOLDER]Transcriptonator.exe"
-                  WorkingDirectory="INSTALLFOLDER" />
+                  WorkingDirectory="INSTALLFOLDER"
+                  Icon="AppIcon.ico" />
         <RemoveFolder Id="CleanUpShortCut" Directory="ApplicationProgramsFolder" On="uninstall" />
         <RegistryValue Root="HKCU" Key="Software\Transcriptonator" Name="installed" Type="integer" Value="1" KeyPath="yes" />
       </Component>

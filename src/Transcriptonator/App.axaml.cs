@@ -23,45 +23,54 @@ public partial class App : Application
     {
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
-            var services = new ServiceCollection();
-            ConfigureServices(services);
-            Services = services.BuildServiceProvider();
-
-            // Run migrations
-            using (var scope = Services.CreateScope())
+            try
             {
-                var db = scope.ServiceProvider.GetRequiredService<TranscriptonatorDbContext>();
-                db.Database.Migrate();
-            }
+                var services = new ServiceCollection();
+                ConfigureServices(services);
+                Services = services.BuildServiceProvider();
 
-            var mainVm = Services.GetRequiredService<MainWindowViewModel>();
-            var configService = Services.GetRequiredService<IConfigService>();
-            var modelManager = Services.GetRequiredService<IModelManagerService>();
-            var config = configService.Load();
-
-            // Wire up child ViewModels
-            mainVm.Transcribe = Services.GetRequiredService<TranscribeViewModel>();
-            mainVm.Transcriptions = Services.GetRequiredService<TranscriptionsViewModel>();
-            mainVm.Search = Services.GetRequiredService<SearchViewModel>();
-            mainVm.Settings = Services.GetRequiredService<SettingsViewModel>();
-
-            // Check if setup is needed
-            if (!modelManager.AreAllModelsReady(config.WhisperModelSize))
-            {
-                mainVm.IsSetupRequired = true;
-                mainVm.Setup = new SetupViewModel(modelManager, configService, () =>
+                // Run migrations
+                using (var scope = Services.CreateScope())
                 {
-                    mainVm.IsSetupRequired = false;
-                });
+                    var db = scope.ServiceProvider.GetRequiredService<TranscriptonatorDbContext>();
+                    db.Database.Migrate();
+                }
 
-                // Auto-start download
-                _ = mainVm.Setup.StartDownloadCommand.ExecuteAsync(null);
+                var mainVm = Services.GetRequiredService<MainWindowViewModel>();
+                var configService = Services.GetRequiredService<IConfigService>();
+                var modelManager = Services.GetRequiredService<IModelManagerService>();
+                var config = configService.Load();
+
+                // Wire up child ViewModels
+                mainVm.Transcribe = Services.GetRequiredService<TranscribeViewModel>();
+                mainVm.Transcriptions = Services.GetRequiredService<TranscriptionsViewModel>();
+                mainVm.Search = Services.GetRequiredService<SearchViewModel>();
+                mainVm.Settings = Services.GetRequiredService<SettingsViewModel>();
+
+                // Check if setup is needed
+                if (!modelManager.AreAllModelsReady(config.WhisperModelSize))
+                {
+                    mainVm.IsSetupRequired = true;
+                    mainVm.Setup = new SetupViewModel(modelManager, configService, () =>
+                    {
+                        mainVm.IsSetupRequired = false;
+                    });
+
+                    // Auto-start download
+                    _ = mainVm.Setup.StartDownloadCommand.ExecuteAsync(null);
+                }
+
+                desktop.MainWindow = new MainWindow
+                {
+                    DataContext = mainVm
+                };
             }
-
-            desktop.MainWindow = new MainWindow
+            catch (Exception ex)
             {
-                DataContext = mainVm
-            };
+                Program.ShowFatalError(
+                    "Transcriptonator failed to initialize.\n\n" +
+                    $"{ex.GetType().Name}: {ex.Message}");
+            }
         }
 
         base.OnFrameworkInitializationCompleted();
