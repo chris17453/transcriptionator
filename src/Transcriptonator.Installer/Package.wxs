@@ -9,8 +9,14 @@
     <MediaTemplate EmbedCab="yes" />
 
     <Feature Id="Main" Title="Transcriptonator" Level="1">
-      <ComponentGroupRef Id="Files.Transcriptonator" />
+      <ComponentGroupRef Id="AppFiles" />
       <ComponentRef Id="ApplicationShortcut" />
     </Feature>
   </Package>
+
+  <Fragment>
+    <ComponentGroup Id="AppFiles" Directory="INSTALLFOLDER">
+      <Files Include="!(bindpath.Transcriptonator)\**" />
+    </ComponentGroup>
+  </Fragment>
 </Wix>

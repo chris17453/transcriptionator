@@ -1,10 +1,10 @@
 <Project Sdk="WixToolset.Sdk/6.0.0">
   <PropertyGroup>
     <OutputType>Package</OutputType>
-    <HarvestFilesPublishedProjectOutputGroupOutput>true</HarvestFilesPublishedProjectOutputGroupOutput>
+    <InstallerPlatform>x64</InstallerPlatform>
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\Transcriptonator\Transcriptonator.csproj" />
+    <ProjectReference Include="..\Transcriptonator\Transcriptonator.csproj" Publish="true" />
   </ItemGroup>
 </Project>
