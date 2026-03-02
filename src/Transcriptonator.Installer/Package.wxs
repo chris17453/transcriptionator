@@ -9,7 +9,7 @@
     <MediaTemplate EmbedCab="yes" />
 
     <Feature Id="Main" Title="Transcriptonator" Level="1">
-      <ComponentGroupRef Id="PublishOutput" />
+      <ComponentGroupRef Id="Transcriptonator.Publish" />
       <ComponentRef Id="ApplicationShortcut" />
     </Feature>
   </Package>
