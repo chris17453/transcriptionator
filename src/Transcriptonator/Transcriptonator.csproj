@@ -4,6 +4,8 @@
     <OutputType>Exe</OutputType>
     <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
     <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+    <!-- LLamaSharp has multiple native DLL variants (avx/avx2/avx512) - allow duplicates -->
+    <ErrorOnDuplicatePublishOutputFiles>false</ErrorOnDuplicatePublishOutputFiles>
   </PropertyGroup>
 
   <!-- Windows-only: app manifest to declare Windows 10/11 support -->
