@@ -7,5 +7,10 @@
     <ProjectReference Include="..\Transcriptonator\Transcriptonator.csproj">
       <Publish>true</Publish>
     </ProjectReference>
+    <HarvestDirectory Include="!(bindpath.Transcriptonator)">
+      <ComponentGroupName>PublishOutput</ComponentGroupName>
+      <DirectoryRefId>INSTALLFOLDER</DirectoryRefId>
+      <SuppressRootDirectory>true</SuppressRootDirectory>
+    </HarvestDirectory>
   </ItemGroup>
 </Project>
