@@ -5,7 +5,7 @@ public record TranscriptionResult(string Text, string OutputPath, double Duratio
 public interface ITranscriptionService
 {
     Task<TranscriptionResult> TranscribeAsync(
-        string mp3Path,
+        string audioPath,
         string outputDirectory,
         string whisperModelSize,
         IProgress<double>? progress = null,

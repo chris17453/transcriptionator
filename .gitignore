@@ -27,6 +27,7 @@ bld/
 [Oo]ut/
 [Ll]og/
 [Ll]ogs/
+publish/
 
 ## Visual Studio
 .vs/
@@ -46,19 +47,51 @@ ClientBin/
 *.pfx
 *.publishsettings
 *.publishproj
+launchSettings.json
 
 ## JetBrains Rider
 .idea/
 *.sln.iml
 
-## macOS
-.DS_Store
+## VS Code
+.vscode/
 
 ## WiX
 *.wixpdb
 *.msi
 *.msm
 
-## User-specific
+## ML Models (Whisper, ONNX, LLaMA)
+*.bin
+*.gguf
+*.onnx
+models/
+
+## SQLite databases
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+
+## Test / Coverage
+[Cc]overage*/
+*.coveragexml
+*.opencover.xml
+lcov.info
+
+## OS files
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+## User-specific / secrets
 *.env
 *.local
+appsettings.*.json
+!appsettings.json
+!appsettings.Development.json
+
+## Crash dumps
+*.dmp
+core

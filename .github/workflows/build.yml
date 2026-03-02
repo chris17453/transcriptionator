@@ -1,0 +1,87 @@
+name: Build
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restore
+        run: dotnet restore
+
+      - name: Build
+        run: dotnet build -c Release --no-restore
+
+      - name: Test
+        run: dotnet test -c Release --no-build
+
+      - name: Publish linux-x64
+        run: >
+          dotnet publish src/Transcriptonator/Transcriptonator.csproj
+          -c Release
+          -r linux-x64
+          --self-contained
+          -o publish/linux-x64
+
+      - name: Upload linux artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Transcriptonator-linux-x64
+          path: publish/linux-x64/
+
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Install WiX Toolset
+        run: dotnet tool install --global wix
+
+      - name: Restore
+        run: dotnet restore
+
+      - name: Build
+        run: dotnet build -c Release --no-restore
+
+      - name: Test
+        run: dotnet test -c Release --no-build
+
+      - name: Publish win-x64
+        run: >
+          dotnet publish src/Transcriptonator/Transcriptonator.csproj
+          -c Release
+          -r win-x64
+          --self-contained
+          -o publish/win-x64
+
+      - name: Build MSI installer
+        run: dotnet build src/Transcriptonator.Installer/Transcriptonator.Installer.wixproj -c Release
+
+      - name: Upload windows artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Transcriptonator-win-x64
+          path: publish/win-x64/
+
+      - name: Upload MSI installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: Transcriptonator-Installer
+          path: src/Transcriptonator.Installer/bin/Release/**/*.msi

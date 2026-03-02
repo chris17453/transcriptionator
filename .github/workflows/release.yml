@@ -1,0 +1,141 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version tag (e.g., v1.0.0)'
+        required: true
+        type: string
+
+jobs:
+  build-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restore
+        run: dotnet restore
+
+      - name: Build
+        run: dotnet build -c Release --no-restore
+
+      - name: Test
+        run: dotnet test -c Release --no-build
+
+      - name: Publish linux-x64
+        run: |
+          dotnet publish src/Transcriptonator/Transcriptonator.csproj \
+            -c Release \
+            -r linux-x64 \
+            --self-contained \
+            -o publish/linux-x64
+
+      - name: Create Linux archive
+        run: |
+          cd publish/linux-x64
+          tar -czvf ../Transcriptonator-linux-x64.tar.gz .
+
+      - name: Upload linux artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Transcriptonator-linux-x64
+          path: publish/Transcriptonator-linux-x64.tar.gz
+
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Install WiX Toolset
+        run: dotnet tool install --global wix
+
+      - name: Restore
+        run: dotnet restore
+
+      - name: Build
+        run: dotnet build -c Release --no-restore
+
+      - name: Test
+        run: dotnet test -c Release --no-build
+
+      - name: Publish win-x64
+        run: |
+          dotnet publish src/Transcriptonator/Transcriptonator.csproj `
+            -c Release `
+            -r win-x64 `
+            --self-contained `
+            -o publish/win-x64
+
+      - name: Build MSI installer
+        run: dotnet build src/Transcriptonator.Installer/Transcriptonator.Installer.wixproj -c Release
+
+      - name: Create Windows archive
+        run: |
+          cd publish/win-x64
+          Compress-Archive -Path * -DestinationPath ../Transcriptonator-win-x64.zip
+
+      - name: Find MSI file
+        id: find-msi
+        run: |
+          $msi = Get-ChildItem -Path src/Transcriptonator.Installer/bin/Release -Filter *.msi -Recurse | Select-Object -First 1
+          echo "msi_path=$($msi.FullName)" >> $env:GITHUB_OUTPUT
+          echo "msi_name=$($msi.Name)" >> $env:GITHUB_OUTPUT
+
+      - name: Upload windows artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Transcriptonator-win-x64
+          path: publish/Transcriptonator-win-x64.zip
+
+      - name: Upload MSI installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: Transcriptonator-Installer
+          path: ${{ steps.find-msi.outputs.msi_path }}
+
+  release:
+    needs: [build-linux, build-windows]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Get version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "version=${{ inputs.version }}" >> $GITHUB_OUTPUT
+          else
+            echo "version=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.version }}
+          name: Transcriptonator ${{ steps.version.outputs.version }}
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+          files: |
+            artifacts/Transcriptonator-linux-x64/Transcriptonator-linux-x64.tar.gz
+            artifacts/Transcriptonator-win-x64/Transcriptonator-win-x64.zip
+            artifacts/Transcriptonator-Installer/*.msi

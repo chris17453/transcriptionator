@@ -24,11 +24,12 @@ public partial class TranscribeView : UserControl
 
                 var files = await topLevel.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
                 {
-                    Title = "Select MP3 File",
+                    Title = "Select Audio File",
                     AllowMultiple = false,
                     FileTypeFilter = new[]
                     {
-                        new FilePickerFileType("MP3 Files") { Patterns = new[] { "*.mp3" } }
+                        new FilePickerFileType("Audio Files") { Patterns = new[]
+                            { "*.mp3", "*.wav", "*.aiff", "*.aif", "*.wma", "*.m4a", "*.ogg", "*.flac", "*.voc" } }
                     }
                 });
 
@@ -46,7 +47,7 @@ public partial class TranscribeView : UserControl
 
                 var folders = await topLevel.StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
                 {
-                    Title = "Select Folder with MP3 Files",
+                    Title = "Select Folder with Audio Files",
                     AllowMultiple = false
                 });
 

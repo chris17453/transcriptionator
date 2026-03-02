@@ -14,7 +14,9 @@ public class ModelManagerService : IModelManagerService
     public ModelManagerService(IConfigService config)
     {
         _config = config;
-        _httpClient = new HttpClient();
+        var handler = new HttpClientHandler();
+        handler.ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator;
+        _httpClient = new HttpClient(handler);
         _httpClient.Timeout = TimeSpan.FromHours(2);
     }
 

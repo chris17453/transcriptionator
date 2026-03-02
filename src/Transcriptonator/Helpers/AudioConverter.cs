@@ -5,20 +5,25 @@ namespace Transcriptonator.Helpers;
 
 public static class AudioConverter
 {
+    public static readonly string[] SupportedExtensions =
+        { ".mp3", ".wav", ".aiff", ".aif", ".wma", ".m4a", ".ogg", ".flac", ".voc" };
+
+    public static bool IsSupported(string filePath)
+        => SupportedExtensions.Contains(
+            Path.GetExtension(filePath).ToLowerInvariant());
+
     /// <summary>
-    /// Converts an MP3 file to a 16kHz mono WAV file suitable for Whisper.
-    /// Uses cross-platform WDL resampler (works on Windows, Linux, macOS).
+    /// Converts an audio file to a 16kHz mono WAV file suitable for Whisper.
+    /// Supports MP3, WAV, AIFF, and other formats via NAudio.
     /// Returns the path to the temporary WAV file.
     /// </summary>
-    public static async Task<string> ConvertMp3ToWavAsync(string mp3Path, CancellationToken ct = default)
+    public static async Task<string> ConvertToWavAsync(string audioPath, CancellationToken ct = default)
     {
         var wavPath = Path.Combine(Path.GetTempPath(), $"transcriptonator_{Guid.NewGuid():N}.wav");
 
         await Task.Run(() =>
         {
-            using var reader = new Mp3FileReader(mp3Path);
-
-            // Convert to sample provider for cross-platform resampling
+            using var reader = CreateReader(audioPath);
             ISampleProvider sampleProvider = reader.ToSampleProvider();
 
             // Convert to mono if stereo
@@ -41,11 +46,25 @@ public static class AudioConverter
     }
 
     /// <summary>
-    /// Gets the duration of an MP3 file in seconds.
+    /// Gets the duration of an audio file in seconds.
     /// </summary>
-    public static double GetDurationSeconds(string mp3Path)
+    public static double GetDurationSeconds(string audioPath)
     {
-        using var reader = new Mp3FileReader(mp3Path);
+        using var reader = CreateReader(audioPath);
         return reader.TotalTime.TotalSeconds;
+    }
+
+    private static WaveStream CreateReader(string path)
+    {
+        var ext = Path.GetExtension(path).ToLowerInvariant();
+        return ext switch
+        {
+            ".wav" => new WaveFileReader(path),
+            ".aiff" or ".aif" => new AiffFileReader(path),
+            // Mp3FileReader handles MP3; AudioFileReader handles anything
+            // the platform supports (WMA/M4A/OGG/FLAC via MediaFoundation on Windows)
+            ".mp3" => new Mp3FileReader(path),
+            _ => new AudioFileReader(path),
+        };
     }
 }

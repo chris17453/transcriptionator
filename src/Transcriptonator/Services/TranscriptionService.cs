@@ -17,7 +17,7 @@ public class TranscriptionService : ITranscriptionService
     }
 
     public async Task<TranscriptionResult> TranscribeAsync(
-        string mp3Path,
+        string audioPath,
         string outputDirectory,
         string whisperModelSize,
         IProgress<double>? progress = null,
@@ -30,8 +30,8 @@ public class TranscriptionService : ITranscriptionService
         {
             progress?.Report(0.05);
 
-            // Convert MP3 to WAV
-            wavPath = await AudioConverter.ConvertMp3ToWavAsync(mp3Path, ct);
+            // Convert audio to 16kHz mono WAV for Whisper
+            wavPath = await AudioConverter.ConvertToWavAsync(audioPath, ct);
             progress?.Report(0.15);
 
             // Load Whisper model and process
@@ -60,14 +60,14 @@ public class TranscriptionService : ITranscriptionService
 
             // Write output file
             Directory.CreateDirectory(outputDirectory);
-            var outputFileName = Path.GetFileNameWithoutExtension(mp3Path) + ".txt";
+            var outputFileName = Path.GetFileNameWithoutExtension(audioPath) + ".txt";
             var outputPath = Path.Combine(outputDirectory, outputFileName);
 
             // Handle duplicate filenames
             var counter = 1;
             while (File.Exists(outputPath))
             {
-                outputFileName = $"{Path.GetFileNameWithoutExtension(mp3Path)}_{counter++}.txt";
+                outputFileName = $"{Path.GetFileNameWithoutExtension(audioPath)}_{counter++}.txt";
                 outputPath = Path.Combine(outputDirectory, outputFileName);
             }
 

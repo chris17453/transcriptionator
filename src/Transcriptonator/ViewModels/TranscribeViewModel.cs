@@ -77,22 +77,23 @@ public partial class TranscribeViewModel : ViewModelBase
         FailedCount = 0;
         InputPath = path;
 
-        IEnumerable<string> mp3Files;
+        IEnumerable<string> audioFiles;
 
-        if (File.Exists(path) && path.EndsWith(".mp3", StringComparison.OrdinalIgnoreCase))
+        if (File.Exists(path) && AudioConverter.IsSupported(path))
         {
-            mp3Files = new[] { path };
+            audioFiles = new[] { path };
         }
         else if (Directory.Exists(path))
         {
-            mp3Files = Directory.GetFiles(path, "*.mp3", SearchOption.AllDirectories);
+            audioFiles = Directory.GetFiles(path, "*.*", SearchOption.AllDirectories)
+                .Where(AudioConverter.IsSupported);
         }
         else
         {
             return;
         }
 
-        foreach (var file in mp3Files.OrderBy(f => f))
+        foreach (var file in audioFiles.OrderBy(f => f))
         {
             var info = new FileInfo(file);
             Files.Add(new Mp3FileItem
