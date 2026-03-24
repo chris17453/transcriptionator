@@ -12,6 +12,9 @@ public class PlaudApiService : IPlaudApiService
     private const int MaxRetryAttempts = 3;
 
     public bool IsAuthenticated { get; private set; }
+    public Action<string>? LogCallback { get; set; }
+
+    private void Log(string message) => LogCallback?.Invoke(message);
 
     public PlaudApiService()
     {
@@ -39,20 +42,32 @@ public class PlaudApiService : IPlaudApiService
 
     public async Task LoginAsync(string email, string password, CancellationToken ct = default)
     {
+        var loginUrl = $"{_baseUrl}/auth/access-token";
+        Log($"POST {loginUrl} (user: {email})");
+
         var content = new FormUrlEncodedContent(new Dictionary<string, string>
         {
             ["username"] = email,
             ["password"] = password
         });
 
-        using var response = await _httpClient.PostAsync($"{_baseUrl}/auth/access-token", content, ct);
+        using var response = await _httpClient.PostAsync(loginUrl, content, ct);
         var json = await response.Content.ReadAsStringAsync(ct);
+        Log($"Login response: HTTP {(int)response.StatusCode} {response.StatusCode}");
+
+        if (!response.IsSuccessStatusCode)
+        {
+            Log($"Login response body: {Truncate(json, 500)}");
+            throw new HttpRequestException($"Login failed: HTTP {(int)response.StatusCode} {response.StatusCode}");
+        }
+
         var doc = JsonDocument.Parse(json);
         var root = doc.RootElement;
 
         if (root.TryGetProperty("status", out var status) && status.GetInt32() != 0)
         {
             var msg = root.TryGetProperty("msg", out var m) ? m.GetString() : "Login failed";
+            Log($"Login API error: {msg}");
             throw new InvalidOperationException(msg);
         }
 
@@ -60,8 +75,12 @@ public class PlaudApiService : IPlaudApiService
         var tokenType = root.TryGetProperty("token_type", out var tt) ? tt.GetString() ?? "bearer" : "bearer";
 
         if (string.IsNullOrEmpty(accessToken))
+        {
+            Log($"No access_token in response: {Truncate(json, 300)}");
             throw new InvalidOperationException("No access token in response.");
+        }
 
+        Log($"Login OK, token length: {accessToken.Length}");
         SetAuthToken($"{tokenType} {accessToken}");
     }
 
@@ -71,17 +90,24 @@ public class PlaudApiService : IPlaudApiService
         int skip = 0;
         const int limit = 500;
 
+        Log("Fetching recording list...");
+
         while (true)
         {
             var url = $"{_baseUrl}/file/simple/web?skip={skip}&limit={limit}&is_trash=2&sort_by=start_time&is_desc=true";
+            Log($"GET {url}");
             var json = await SendWithRetryAsync(url, ct);
             var doc = JsonDocument.Parse(json);
             var root = doc.RootElement;
 
             if (!root.TryGetProperty("data_file_list", out var list))
+            {
+                Log($"No 'data_file_list' in response: {Truncate(json, 300)}");
                 break;
+            }
 
             var items = list.EnumerateArray().ToList();
+            Log($"Page returned {items.Count} items (skip={skip})");
             if (items.Count == 0) break;
 
             foreach (var item in items)
@@ -107,23 +133,37 @@ public class PlaudApiService : IPlaudApiService
             if (items.Count < limit) break;
         }
 
+        Log($"Total recordings fetched: {recordings.Count}");
         return recordings;
     }
 
     public async Task<string> GetDownloadUrlAsync(string fileId, CancellationToken ct = default)
     {
         var url = $"{_baseUrl}/file/temp-url/{fileId}";
+        Log($"GET {url}");
         var json = await SendWithRetryAsync(url, ct);
         var doc = JsonDocument.Parse(json);
 
         var root = doc.RootElement;
         var downloadUrl = root.TryGetProperty("temp_url", out var tu) ? tu.GetString() : null;
 
-        return downloadUrl ?? throw new InvalidOperationException("No download URL returned from PLAUD API.");
+        if (downloadUrl == null)
+        {
+            Log($"No 'temp_url' in response: {Truncate(json, 500)}");
+            throw new InvalidOperationException("No download URL returned from PLAUD API.");
+        }
+
+        // Log the URL domain/path (not query params which contain auth tokens)
+        var dlUri = new Uri(downloadUrl);
+        Log($"Got download URL: {dlUri.Scheme}://{dlUri.Host}{dlUri.AbsolutePath} (query length: {dlUri.Query.Length})");
+        return downloadUrl;
     }
 
     public async Task DownloadFileAsync(string url, string destPath, IProgress<double>? progress = null, CancellationToken ct = default)
     {
+        var dlUri = new Uri(url);
+        Log($"Downloading from {dlUri.Host}{dlUri.AbsolutePath}...");
+
         await WithRetryAsync(async () =>
         {
             var dir = Path.GetDirectoryName(destPath);
@@ -132,10 +172,26 @@ public class PlaudApiService : IPlaudApiService
             var tempPath = destPath + ".tmp";
             try
             {
+                Log($"GET {dlUri.Scheme}://{dlUri.Host}{dlUri.AbsolutePath} (presigned URL)");
                 using var response = await _downloadClient.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, ct);
-                response.EnsureSuccessStatusCode();
+
+                Log($"Download response: HTTP {(int)response.StatusCode} {response.StatusCode}");
+                if (!response.IsSuccessStatusCode)
+                {
+                    string body;
+                    try { body = await response.Content.ReadAsStringAsync(ct); }
+                    catch { body = "(could not read body)"; }
+                    Log($"Download error response headers:");
+                    foreach (var h in response.Headers)
+                        Log($"  {h.Key}: {string.Join(", ", h.Value)}");
+                    foreach (var h in response.Content.Headers)
+                        Log($"  {h.Key}: {string.Join(", ", h.Value)}");
+                    Log($"Download error response body: {Truncate(body, 1000)}");
+                    response.EnsureSuccessStatusCode(); // throw with status code
+                }
 
                 var totalBytes = response.Content.Headers.ContentLength ?? -1;
+                Log($"Content-Length: {(totalBytes >= 0 ? totalBytes.ToString() : "unknown")}");
                 using var contentStream = await response.Content.ReadAsStreamAsync(ct);
                 using var fileStream = File.Create(tempPath);
 
@@ -153,12 +209,14 @@ public class PlaudApiService : IPlaudApiService
                 }
 
                 fileStream.Close();
+                Log($"Downloaded {totalRead} bytes to {tempPath}");
 
                 if (new FileInfo(tempPath).Length == 0)
                     throw new IOException("Downloaded file is empty.");
 
                 File.Move(tempPath, destPath, overwrite: true);
                 progress?.Report(1.0);
+                Log($"Saved to {destPath}");
             }
             catch
             {
@@ -182,9 +240,11 @@ public class PlaudApiService : IPlaudApiService
 
     private async Task<string> SendWithRedirectAsync(string url, CancellationToken ct)
     {
+        Log($"API GET {url}");
         using var request = new HttpRequestMessage(HttpMethod.Get, url);
         using var response = await _httpClient.SendAsync(request, ct);
         var json = await response.Content.ReadAsStringAsync(ct);
+        Log($"API response: HTTP {(int)response.StatusCode} {response.StatusCode} ({json.Length} chars)");
 
         // Check for regional redirect
         var doc = JsonDocument.Parse(json);
@@ -205,17 +265,24 @@ public class PlaudApiService : IPlaudApiService
 
                 var uri = new Uri(url);
                 var newUrl = _baseUrl + uri.PathAndQuery;
+                Log($"Regional redirect: {_baseUrl} -> retrying as {newUrl}");
                 return await SendWithRedirectAsync(newUrl, ct);
             }
         }
 
         if (!response.IsSuccessStatusCode)
-            throw new HttpRequestException($"PLAUD API returned {response.StatusCode}: {json}");
+        {
+            Log($"API error response headers:");
+            foreach (var h in response.Headers)
+                Log($"  {h.Key}: {string.Join(", ", h.Value)}");
+            Log($"API error body: {Truncate(json, 1000)}");
+            throw new HttpRequestException($"PLAUD API returned {(int)response.StatusCode} {response.StatusCode}: {Truncate(json, 500)}");
+        }
 
         return json;
     }
 
-    private static async Task WithRetryAsync(Func<Task> action, IProgress<double>? progress, CancellationToken ct)
+    private async Task WithRetryAsync(Func<Task> action, IProgress<double>? progress, CancellationToken ct)
     {
         for (int attempt = 1; ; attempt++)
         {
@@ -226,8 +293,9 @@ public class PlaudApiService : IPlaudApiService
             }
             catch (Exception ex) when (attempt <= MaxRetryAttempts && IsTransient(ex) && !ct.IsCancellationRequested)
             {
-                progress?.Report(0);
                 var delay = TimeSpan.FromSeconds(Math.Pow(2, attempt));
+                Log($"Retry {attempt}/{MaxRetryAttempts} after {ex.GetType().Name}: {ex.Message} (waiting {delay.TotalSeconds}s)");
+                progress?.Report(0);
                 await Task.Delay(delay, ct);
             }
         }
@@ -248,4 +316,7 @@ public class PlaudApiService : IPlaudApiService
         if (ex is TaskCanceledException { InnerException: TimeoutException }) return true;
         return false;
     }
+
+    private static string Truncate(string s, int maxLen) =>
+        s.Length <= maxLen ? s : s[..maxLen] + "...(truncated)";
 }

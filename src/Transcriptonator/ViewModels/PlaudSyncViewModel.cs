@@ -86,6 +86,8 @@ public partial class PlaudSyncViewModel : ViewModelBase
         _configService = configService;
         _tokenListener = tokenListener;
 
+        _plaudApi.LogCallback = Log;
+
         var config = configService.Load();
         _maxConcurrentDownloads = config.MaxConcurrentPlaudDownloads;
 
@@ -276,29 +278,48 @@ public partial class PlaudSyncViewModel : ViewModelBase
             Log($"API returned {dtos.Count} recordings");
 
             await using var db = await _dbFactory.CreateDbContextAsync();
-            var existingIds = await db.PlaudRecordings
-                .Select(r => r.PlaudFileId)
-                .ToListAsync();
-            var existingSet = existingIds.ToHashSet();
+            var existing = await db.PlaudRecordings.ToListAsync();
+            var existingFileIds = existing.Select(r => r.PlaudFileId).ToHashSet();
+            var existingTitleDuration = existing
+                .Select(r => (r.Title.ToLowerInvariant(), (int)Math.Round(r.DurationSeconds)))
+                .ToHashSet();
+            Log($"DB has {existing.Count} existing recordings");
 
             int newCount = 0;
+            int skipCount = 0;
+            int dupeCount = 0;
             foreach (var dto in dtos)
             {
-                if (!existingSet.Contains(dto.FileId))
+                if (existingFileIds.Contains(dto.FileId))
                 {
-                    db.PlaudRecordings.Add(new PlaudRecording
-                    {
-                        PlaudFileId = dto.FileId,
-                        Title = dto.Title,
-                        RecordedAtUtc = dto.StartTime,
-                        DurationSeconds = dto.Duration,
-                        FolderName = dto.TagName,
-                        FileSizeBytes = dto.FileSize,
-                        IsDownloaded = false,
-                    });
-                    newCount++;
+                    skipCount++;
+                    continue;
                 }
+
+                var titleKey = (dto.Title.ToLowerInvariant(), (int)Math.Round(dto.Duration));
+                if (existingTitleDuration.Contains(titleKey))
+                {
+                    dupeCount++;
+                    Log($"  DUPE (title+duration match): {dto.FileId} - {dto.Title}");
+                    continue;
+                }
+
+                db.PlaudRecordings.Add(new PlaudRecording
+                {
+                    PlaudFileId = dto.FileId,
+                    Title = dto.Title,
+                    RecordedAtUtc = dto.StartTime,
+                    DurationSeconds = dto.Duration,
+                    FolderName = dto.TagName,
+                    FileSizeBytes = dto.FileSize,
+                    IsDownloaded = false,
+                });
+                newCount++;
+                existingTitleDuration.Add(titleKey);
+                existingFileIds.Add(dto.FileId);
+                Log($"  NEW: {dto.FileId} - {dto.Title}");
             }
+            Log($"Sync: {newCount} new, {skipCount} existing, {dupeCount} duplicates skipped");
 
             if (newCount > 0)
                 await db.SaveChangesAsync();

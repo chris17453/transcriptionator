@@ -3,6 +3,7 @@ namespace Transcriptonator.Services;
 public interface IPlaudApiService
 {
     bool IsAuthenticated { get; }
+    Action<string>? LogCallback { get; set; }
     void SetAuthToken(string token);
     Task LoginAsync(string email, string password, CancellationToken ct = default);
     Task<List<PlaudRecordingDto>> ListRecordingsAsync(CancellationToken ct = default);
