@@ -356,11 +356,13 @@ public partial class PlaudSyncViewModel : ViewModelBase
         var pending = Recordings.Where(r => !r.IsDownloaded && r.Status != "Downloading...").ToList();
         if (pending.Count == 0)
         {
+            Log("No pending recordings to download");
             StatusText = "All recordings already downloaded.";
             IsDownloading = false;
             return;
         }
 
+        Log($"Starting download of {pending.Count} recordings (max {MaxConcurrentDownloads} concurrent) to {downloadDir}");
         StatusText = $"Downloading {pending.Count} recordings...";
         var semaphore = new SemaphoreSlim(MaxConcurrentDownloads);
         int completed = 0;
@@ -374,7 +376,9 @@ public partial class PlaudSyncViewModel : ViewModelBase
                 item.Status = "Downloading...";
                 item.Progress = 0;
 
+                Log($"[{item.Title}] Fetching download URL for {item.PlaudFileId}...");
                 var downloadUrl = await _plaudApi.GetDownloadUrlAsync(item.PlaudFileId, ct);
+                Log($"[{item.Title}] Got URL, starting download...");
 
                 var safeTitle = string.Join("_", item.Title.Split(Path.GetInvalidFileNameChars()));
                 if (string.IsNullOrWhiteSpace(safeTitle)) safeTitle = item.PlaudFileId;
@@ -409,10 +413,12 @@ public partial class PlaudSyncViewModel : ViewModelBase
                 var done = Interlocked.Increment(ref completed);
                 OverallProgress = (double)done / pending.Count;
                 UpdateCounts();
+                Log($"[{item.Title}] Downloaded ({item.SizeDisplay}) -> {destPath}");
             }
             catch (OperationCanceledException)
             {
                 item.Status = "Cancelled";
+                Log($"[{item.Title}] Cancelled");
             }
             catch (Exception ex)
             {
@@ -420,6 +426,9 @@ public partial class PlaudSyncViewModel : ViewModelBase
                 Interlocked.Increment(ref completed);
                 FailedCount++;
                 OverallProgress = (double)completed / pending.Count;
+                Log($"[{item.Title}] DOWNLOAD ERROR: {ex.GetType().Name}: {ex.Message}");
+                if (ex.InnerException != null)
+                    Log($"[{item.Title}]   Inner: {ex.InnerException.GetType().Name}: {ex.InnerException.Message}");
             }
             finally
             {
@@ -431,10 +440,12 @@ public partial class PlaudSyncViewModel : ViewModelBase
         {
             await Task.WhenAll(tasks);
             UpdateCounts();
+            Log($"Download complete: {DownloadedCount} downloaded, {FailedCount} failed");
             StatusText = $"Done: {DownloadedCount} downloaded, {FailedCount} failed.";
         }
         catch (OperationCanceledException)
         {
+            Log("Download batch cancelled");
             StatusText = "Download cancelled.";
         }
         finally
