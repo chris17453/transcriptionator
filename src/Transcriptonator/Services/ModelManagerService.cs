@@ -51,9 +51,13 @@ public class ModelManagerService : IModelManagerService
         var ggmlType = modelSize.ToLowerInvariant() switch
         {
             "tiny" => GgmlType.Tiny,
+            "tiny.en" => GgmlType.TinyEn,
             "base" => GgmlType.Base,
+            "base.en" => GgmlType.BaseEn,
             "small" => GgmlType.Small,
+            "small.en" => GgmlType.SmallEn,
             "medium" => GgmlType.Medium,
+            "medium.en" => GgmlType.MediumEn,
             "large" => GgmlType.LargeV3,
             _ => GgmlType.Small
         };

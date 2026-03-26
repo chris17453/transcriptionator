@@ -5,10 +5,15 @@ public interface IPlaudApiService
     bool IsAuthenticated { get; }
     Action<string>? LogCallback { get; set; }
     void SetAuthToken(string token);
-    Task LoginAsync(string email, string password, CancellationToken ct = default);
+    void ClearAuthToken();
     Task<List<PlaudRecordingDto>> ListRecordingsAsync(CancellationToken ct = default);
     Task<string> GetDownloadUrlAsync(string fileId, CancellationToken ct = default);
     Task DownloadFileAsync(string url, string destPath, IProgress<double>? progress = null, CancellationToken ct = default);
+}
+
+public class PlaudAuthException : Exception
+{
+    public PlaudAuthException() : base("PLAUD token is invalid or expired. Please provide a new token.") { }
 }
 
 public class PlaudRecordingDto

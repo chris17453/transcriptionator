@@ -38,9 +38,10 @@ public class TranscriptionService : ITranscriptionService
             var modelPath = _modelManager.GetWhisperModelPath(whisperModelSize);
             var config = _configService.Load();
 
+            var language = whisperModelSize.EndsWith(".en", StringComparison.OrdinalIgnoreCase) ? "en" : "auto";
             using var whisperFactory = WhisperFactory.FromPath(modelPath);
             using var processor = whisperFactory.CreateBuilder()
-                .WithLanguage("auto")
+                .WithLanguage(language)
                 .WithThreads(config.ThreadCount)
                 .Build();
 

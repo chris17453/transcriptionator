@@ -31,7 +31,6 @@ public class PlaudApiService : IPlaudApiService
 
     public void SetAuthToken(string token)
     {
-        // Token from localStorage is "bearer <jwt>" or just the jwt
         var jwt = token.Trim();
         if (jwt.StartsWith("bearer ", StringComparison.OrdinalIgnoreCase))
             jwt = jwt["bearer ".Length..];
@@ -40,48 +39,10 @@ public class PlaudApiService : IPlaudApiService
         IsAuthenticated = true;
     }
 
-    public async Task LoginAsync(string email, string password, CancellationToken ct = default)
+    public void ClearAuthToken()
     {
-        var loginUrl = $"{_baseUrl}/auth/access-token";
-        Log($"POST {loginUrl} (user: {email})");
-
-        var content = new FormUrlEncodedContent(new Dictionary<string, string>
-        {
-            ["username"] = email,
-            ["password"] = password
-        });
-
-        using var response = await _httpClient.PostAsync(loginUrl, content, ct);
-        var json = await response.Content.ReadAsStringAsync(ct);
-        Log($"Login response: HTTP {(int)response.StatusCode} {response.StatusCode}");
-
-        if (!response.IsSuccessStatusCode)
-        {
-            Log($"Login response body: {Truncate(json, 500)}");
-            throw new HttpRequestException($"Login failed: HTTP {(int)response.StatusCode} {response.StatusCode}");
-        }
-
-        var doc = JsonDocument.Parse(json);
-        var root = doc.RootElement;
-
-        if (root.TryGetProperty("status", out var status) && status.GetInt32() != 0)
-        {
-            var msg = root.TryGetProperty("msg", out var m) ? m.GetString() : "Login failed";
-            Log($"Login API error: {msg}");
-            throw new InvalidOperationException(msg);
-        }
-
-        var accessToken = root.TryGetProperty("access_token", out var at) ? at.GetString() : null;
-        var tokenType = root.TryGetProperty("token_type", out var tt) ? tt.GetString() ?? "bearer" : "bearer";
-
-        if (string.IsNullOrEmpty(accessToken))
-        {
-            Log($"No access_token in response: {Truncate(json, 300)}");
-            throw new InvalidOperationException("No access token in response.");
-        }
-
-        Log($"Login OK, token length: {accessToken.Length}");
-        SetAuthToken($"{tokenType} {accessToken}");
+        _httpClient.DefaultRequestHeaders.Authorization = null;
+        IsAuthenticated = false;
     }
 
     public async Task<List<PlaudRecordingDto>> ListRecordingsAsync(CancellationToken ct = default)
@@ -268,6 +229,12 @@ public class PlaudApiService : IPlaudApiService
                 Log($"Regional redirect: {_baseUrl} -> retrying as {newUrl}");
                 return await SendWithRedirectAsync(newUrl, ct);
             }
+        }
+
+        if (response.StatusCode is System.Net.HttpStatusCode.Unauthorized or System.Net.HttpStatusCode.Forbidden)
+        {
+            Log($"Auth failure: HTTP {(int)response.StatusCode} {response.StatusCode}");
+            throw new PlaudAuthException();
         }
 
         if (!response.IsSuccessStatusCode)

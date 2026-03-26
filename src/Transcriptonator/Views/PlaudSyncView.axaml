@@ -8,16 +8,15 @@
         <!-- Top: Login + toolbar -->
         <StackPanel DockPanel.Dock="Top" Spacing="8" Margin="0,0,0,8">
 
-            <!-- Login panel (hidden once logged in) -->
+            <!-- Token panel (hidden once logged in) -->
             <Border BorderBrush="Gray" BorderThickness="1" CornerRadius="4"
                     Padding="12" IsVisible="{Binding !IsLoggedIn}">
                 <StackPanel Spacing="10">
-                    <TextBlock Text="PLAUD Login" FontWeight="Bold" FontSize="14" />
+                    <TextBlock Text="PLAUD Token" FontWeight="Bold" FontSize="14" />
 
-                    <!-- Option 1: Browser extension (easiest) -->
+                    <!-- Browser extension -->
                     <TextBlock FontSize="12" FontWeight="SemiBold" Text="Sign in with Google (recommended):" />
 
-                    <!-- Extension not installed yet -->
                     <StackPanel Spacing="6" IsVisible="{Binding !IsExtensionInstalled}">
                         <TextBlock FontSize="11" TextWrapping="Wrap"
                                    Text="One-time setup — install the browser helper extension:" />
@@ -38,7 +37,6 @@
                                 HorizontalAlignment="Left" />
                     </StackPanel>
 
-                    <!-- Extension installed - normal login flow -->
                     <StackPanel Orientation="Horizontal" Spacing="8" IsVisible="{Binding IsExtensionInstalled}">
                         <Button Content="Open PLAUD Login"
                                 Command="{Binding OpenBrowserCommand}" />
@@ -50,19 +48,7 @@
 
                     <Separator Margin="0,2" />
 
-                    <!-- Option 2: Email/password -->
-                    <TextBlock FontSize="12" FontWeight="SemiBold" Text="Or email/password:" />
-                    <StackPanel Orientation="Horizontal" Spacing="8">
-                        <TextBox Text="{Binding Email}" Watermark="Email" Width="200" />
-                        <TextBox Text="{Binding Password}" PasswordChar="*" Watermark="Password" Width="160" />
-                        <Button Content="Log In"
-                                Command="{Binding LoginCommand}"
-                                IsEnabled="{Binding !IsLoggingIn}" />
-                    </StackPanel>
-
-                    <Separator Margin="0,2" />
-
-                    <!-- Option 3: Manual token paste -->
+                    <!-- Manual token paste -->
                     <TextBlock FontSize="12" FontWeight="SemiBold" Text="Or paste token manually:" />
                     <StackPanel Orientation="Horizontal" Spacing="8">
                         <TextBox Text="{Binding ManualToken}"
@@ -72,6 +58,16 @@
                                 Command="{Binding UseManualTokenCommand}" />
                     </StackPanel>
                 </StackPanel>
+            </Border>
+
+            <!-- Logged-in status bar -->
+            <Border BorderBrush="Gray" BorderThickness="1" CornerRadius="4"
+                    Padding="8,6" IsVisible="{Binding IsLoggedIn}">
+                <DockPanel>
+                    <Button Content="Log Out" Command="{Binding LogoutCommand}"
+                            DockPanel.Dock="Right" Padding="12,4" />
+                    <TextBlock Text="Token active" VerticalAlignment="Center" Foreground="Green" FontWeight="SemiBold" />
+                </DockPanel>
             </Border>
 
             <!-- Toolbar -->
