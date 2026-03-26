@@ -54,6 +54,10 @@ public partial class SettingsViewModel : ViewModelBase
 
     public int MaxThreads { get; } = Environment.ProcessorCount;
 
+    public string AppVersion { get; } =
+        System.Reflection.Assembly.GetExecutingAssembly()
+            .GetName().Version?.ToString(3) ?? "unknown";
+
     public ObservableCollection<string> WhisperModelSizes { get; } = new()
     {
         "tiny.en", "base.en", "small.en", "medium.en", "tiny", "base", "small", "medium"

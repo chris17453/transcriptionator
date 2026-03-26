@@ -104,6 +104,12 @@
                 </StackPanel>
             </StackPanel>
 
+            <!-- Version -->
+            <DockPanel>
+                <TextBlock Text="Version" FontWeight="SemiBold" />
+                <TextBlock Text="{Binding AppVersion}" HorizontalAlignment="Right" />
+            </DockPanel>
+
             <!-- Save -->
             <DockPanel>
                 <TextBlock Text="{Binding StatusText}" VerticalAlignment="Center" Foreground="Green" />
