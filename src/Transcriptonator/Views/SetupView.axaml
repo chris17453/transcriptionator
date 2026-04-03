@@ -55,6 +55,12 @@
                     IsVisible="{Binding CanRetry}"
                     HorizontalAlignment="Center"
                     Padding="24,8" />
+
+            <Button Content="Skip — download models in Settings"
+                    Command="{Binding SkipCommand}"
+                    HorizontalAlignment="Center"
+                    Padding="24,8"
+                    Foreground="Gray" />
         </StackPanel>
     </Border>
 </UserControl>

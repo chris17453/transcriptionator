@@ -108,6 +108,13 @@ public partial class SetupViewModel : ViewModelBase
         }
     }
 
+    [RelayCommand]
+    private void Skip()
+    {
+        StartDownloadCommand.Cancel();
+        _onSetupComplete();
+    }
+
     private void MarkInProgressAsFailed()
     {
         if (WhisperStatus == "Downloading...") WhisperStatus = "Failed";

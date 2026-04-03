@@ -23,7 +23,7 @@ public class ConfigServiceTests
         var config = service.Load();
 
         Assert.NotNull(config);
-        Assert.Equal("small", config.WhisperModelSize);
+        Assert.Equal("tiny.en", config.WhisperModelSize);
         Assert.True(config.ThreadCount >= 1);
         Assert.Equal(500, config.ChunkSize);
         Assert.Equal(100, config.ChunkOverlap);

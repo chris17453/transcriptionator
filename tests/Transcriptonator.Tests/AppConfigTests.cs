@@ -9,7 +9,7 @@ public class AppConfigTests
     {
         var config = new AppConfig();
 
-        Assert.Equal("small", config.WhisperModelSize);
+        Assert.Equal("tiny.en", config.WhisperModelSize);
         Assert.True(config.ThreadCount >= 1);
         Assert.Equal(500, config.ChunkSize);
         Assert.Equal(100, config.ChunkOverlap);

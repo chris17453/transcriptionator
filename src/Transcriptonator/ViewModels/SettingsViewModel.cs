@@ -14,7 +14,7 @@ public partial class SettingsViewModel : ViewModelBase
     private string _outputDirectory = string.Empty;
 
     [ObservableProperty]
-    private string _selectedWhisperModel = "small";
+    private string _selectedWhisperModel = "tiny.en";
 
     [ObservableProperty]
     private int _threadCount = 4;
@@ -34,11 +34,33 @@ public partial class SettingsViewModel : ViewModelBase
     [ObservableProperty]
     private string _statusText = string.Empty;
 
+    [ObservableProperty]
+    private double _whisperDownloadProgress;
+
+    [ObservableProperty]
+    private bool _isDownloadingWhisper;
+
+    [ObservableProperty]
+    private double _onnxDownloadProgress;
+
+    [ObservableProperty]
+    private bool _isDownloadingOnnx;
+
+    [ObservableProperty]
+    private double _llmDownloadProgress;
+
+    [ObservableProperty]
+    private bool _isDownloadingLlm;
+
     public int MaxThreads { get; } = Environment.ProcessorCount;
+
+    public string AppVersion { get; } =
+        System.Reflection.Assembly.GetExecutingAssembly()
+            .GetName().Version?.ToString(3) ?? "unknown";
 
     public ObservableCollection<string> WhisperModelSizes { get; } = new()
     {
-        "tiny", "base", "small", "medium", "large"
+        "tiny.en", "base.en", "small.en", "medium.en", "tiny", "base", "small", "medium", "large"
     };
 
     public SettingsViewModel(IConfigService configService, IModelManagerService modelManager)
@@ -55,7 +77,11 @@ public partial class SettingsViewModel : ViewModelBase
         SelectedWhisperModel = config.WhisperModelSize;
         ThreadCount = config.ThreadCount;
         ConfigDirectoryPath = _configService.ConfigDirectory;
+        RefreshModelStatus();
+    }
 
+    partial void OnSelectedWhisperModelChanged(string value)
+    {
         RefreshModelStatus();
     }
 
@@ -88,5 +114,86 @@ public partial class SettingsViewModel : ViewModelBase
         _configService.Save(config);
         StatusText = "Settings saved.";
         RefreshModelStatus();
+    }
+
+    [RelayCommand]
+    private async Task DownloadWhisperModelAsync(CancellationToken ct)
+    {
+        IsDownloadingWhisper = true;
+        WhisperDownloadProgress = 0;
+        StatusText = string.Empty;
+        try
+        {
+            var progress = new Progress<double>(p => WhisperDownloadProgress = p);
+            await _modelManager.DownloadWhisperModelAsync(SelectedWhisperModel, progress, ct);
+            StatusText = "Whisper model downloaded.";
+        }
+        catch (OperationCanceledException)
+        {
+            StatusText = "Download cancelled.";
+        }
+        catch (Exception ex)
+        {
+            StatusText = $"Download failed: {ex.Message}";
+        }
+        finally
+        {
+            IsDownloadingWhisper = false;
+            RefreshModelStatus();
+        }
+    }
+
+    [RelayCommand]
+    private async Task DownloadOnnxModelAsync(CancellationToken ct)
+    {
+        IsDownloadingOnnx = true;
+        OnnxDownloadProgress = 0;
+        StatusText = string.Empty;
+        try
+        {
+            var progress = new Progress<double>(p => OnnxDownloadProgress = p);
+            await _modelManager.DownloadOnnxModelAsync(progress, ct);
+            StatusText = "Embedding model downloaded.";
+        }
+        catch (OperationCanceledException)
+        {
+            StatusText = "Download cancelled.";
+        }
+        catch (Exception ex)
+        {
+            StatusText = $"Download failed: {ex.Message}";
+        }
+        finally
+        {
+            IsDownloadingOnnx = false;
+            RefreshModelStatus();
+        }
+    }
+
+    [RelayCommand]
+    private async Task DownloadLlmModelAsync(CancellationToken ct)
+    {
+        IsDownloadingLlm = true;
+        LlmDownloadProgress = 0;
+        StatusText = string.Empty;
+        try
+        {
+            var progress = new Progress<double>(p => LlmDownloadProgress = p);
+            await _modelManager.DownloadLlmModelAsync(progress, ct);
+            StatusText = "LLM downloaded.";
+        }
+        catch (OperationCanceledException)
+        {
+            StatusText = "Download cancelled.";
+        }
+        catch (Exception ex)
+        {
+            StatusText = $"Download failed: {ex.Message}";
+        }
+        finally
+        {
+            IsDownloadingLlm = false;
+            RefreshModelStatus();
+        }
     }
 }

@@ -24,7 +24,7 @@ public partial class PlaudSyncViewModel : ViewModelBase
     private bool _isDownloading;
 
     [ObservableProperty]
-    private string _statusText = "Log in to sync your PLAUD recordings.";
+    private string _statusText = string.Empty;
 
     [ObservableProperty]
     private int _totalCount;
@@ -53,19 +53,12 @@ public partial class PlaudSyncViewModel : ViewModelBase
     [ObservableProperty]
     private bool _isLoggedIn;
 
-    [ObservableProperty]
-    private bool _isLoggingIn;
-
-    // Email/password login
-    [ObservableProperty]
-    private string _email = string.Empty;
-
-    [ObservableProperty]
-    private string _password = string.Empty;
-
-    // Token paste fallback
+    // Token paste
     [ObservableProperty]
     private string _manualToken = string.Empty;
+
+    [ObservableProperty]
+    private bool _isExtensionInstalled;
 
     public ObservableCollection<PlaudRecordingItem> Recordings { get; } = new();
 
@@ -91,10 +84,45 @@ public partial class PlaudSyncViewModel : ViewModelBase
         var config = configService.Load();
         _maxConcurrentDownloads = config.MaxConcurrentPlaudDownloads;
 
+        // Restore saved token
+        if (!string.IsNullOrWhiteSpace(config.PlaudToken))
+        {
+            _plaudApi.SetAuthToken(config.PlaudToken);
+            _isLoggedIn = true;
+            StatusText = "Restored saved token. Click Sync Recordings.";
+            Log("Restored saved PLAUD token from config.");
+        }
+        else
+        {
+            StatusText = "Provide a PLAUD token to sync your recordings.";
+        }
+
         _tokenListener.TokenReceived += OnTokenReceived;
         _tokenListener.Start();
         Log($"Token listener started on port {TokenListenerService.Port}");
+    }
 
+    private void SaveToken(string token)
+    {
+        var config = _configService.Load();
+        config.PlaudToken = token;
+        _configService.Save(config);
+    }
+
+    private void ClearSavedToken()
+    {
+        var config = _configService.Load();
+        config.PlaudToken = null;
+        _configService.Save(config);
+    }
+
+    private void HandleAuthFailure()
+    {
+        _plaudApi.ClearAuthToken();
+        ClearSavedToken();
+        IsLoggedIn = false;
+        StatusText = "Token expired or invalid — please provide a new token.";
+        Log("Auth failed. Saved token cleared.");
     }
 
     private void OnTokenReceived(string token)
@@ -102,6 +130,7 @@ public partial class PlaudSyncViewModel : ViewModelBase
         Avalonia.Threading.Dispatcher.UIThread.Post(() =>
         {
             _plaudApi.SetAuthToken(token);
+            SaveToken(token);
             IsLoggedIn = true;
             Log($"Token received from browser extension ({token.Length} chars)");
             StatusText = "Logged in via browser extension! Click Sync Recordings.";
@@ -109,37 +138,32 @@ public partial class PlaudSyncViewModel : ViewModelBase
     }
 
     [RelayCommand]
-    private async Task LoginAsync()
+    private void UseManualToken()
     {
-        if (string.IsNullOrWhiteSpace(Email) || string.IsNullOrWhiteSpace(Password))
+        if (string.IsNullOrWhiteSpace(ManualToken))
         {
-            StatusText = "Enter your email and password.";
+            StatusText = "Paste a token first.";
             return;
         }
 
-        IsLoggingIn = true;
-        try
-        {
-            Log($"Logging in as {Email}...");
-            StatusText = "Logging in...";
-            await _plaudApi.LoginAsync(Email.Trim(), Password.Trim());
-            IsLoggedIn = true;
-            Log("Login successful");
-            StatusText = "Logged in. Click Sync Recordings to fetch your recordings.";
-        }
-        catch (Exception ex)
-        {
-            Log($"LOGIN ERROR: {ex.Message}");
-            StatusText = $"Login failed: {ex.Message}";
-        }
-        finally
-        {
-            IsLoggingIn = false;
-        }
+        var token = ManualToken.Trim();
+        _plaudApi.SetAuthToken(token);
+        SaveToken(token);
+        IsLoggedIn = true;
+        ManualToken = string.Empty;
+        Log($"Manual token set ({token.Length} chars)");
+        StatusText = "Token set. Click Sync Recordings to fetch your recordings.";
     }
 
-    [ObservableProperty]
-    private bool _isExtensionInstalled;
+    [RelayCommand]
+    private void Logout()
+    {
+        _plaudApi.ClearAuthToken();
+        ClearSavedToken();
+        IsLoggedIn = false;
+        StatusText = "Logged out. Provide a new token to sync.";
+        Log("Logged out, token cleared.");
+    }
 
     private static string ExtensionDir => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
@@ -206,10 +230,9 @@ public partial class PlaudSyncViewModel : ViewModelBase
     {
         try
         {
-            var destDir = ExtensionDir;
-            if (Directory.Exists(destDir))
+            if (Directory.Exists(ExtensionDir))
             {
-                Directory.Delete(destDir, true);
+                Directory.Delete(ExtensionDir, true);
                 Log("Extension files removed");
             }
             IsExtensionInstalled = false;
@@ -241,28 +264,13 @@ public partial class PlaudSyncViewModel : ViewModelBase
     }
 
     [RelayCommand]
-    private void UseManualToken()
-    {
-        if (string.IsNullOrWhiteSpace(ManualToken))
-        {
-            StatusText = "Paste a token first.";
-            return;
-        }
-
-        _plaudApi.SetAuthToken(ManualToken.Trim());
-        IsLoggedIn = true;
-        Log($"Token set ({ManualToken.Trim().Length} chars)");
-        StatusText = "Token set. Click Sync Recordings to fetch your recordings.";
-    }
-
-    [RelayCommand]
     private async Task SyncAsync()
     {
         if (IsSyncing) return;
 
         if (!_plaudApi.IsAuthenticated)
         {
-            StatusText = "Please log in first.";
+            StatusText = "Please provide a token first.";
             return;
         }
 
@@ -349,6 +357,11 @@ public partial class PlaudSyncViewModel : ViewModelBase
             Log($"Sync complete: {allRecordings.Count} total, {newCount} new");
             StatusText = $"Synced: {allRecordings.Count} recordings ({newCount} new).";
         }
+        catch (PlaudAuthException ex)
+        {
+            Log($"AUTH ERROR: {ex.Message}");
+            HandleAuthFailure();
+        }
         catch (Exception ex)
         {
             Log($"SYNC ERROR: {ex.GetType().Name}: {ex.Message}");
@@ -411,9 +424,7 @@ public partial class PlaudSyncViewModel : ViewModelBase
                     var ext = Path.GetExtension(destPath);
                     int counter = 1;
                     while (File.Exists(destPath))
-                    {
                         destPath = Path.Combine(downloadDir, $"{baseName}_{counter++}{ext}");
-                    }
                 }
 
                 var progress = new Progress<double>(p => item.Progress = p);
@@ -435,6 +446,13 @@ public partial class PlaudSyncViewModel : ViewModelBase
                 OverallProgress = (double)done / pending.Count;
                 UpdateCounts();
                 Log($"[{item.Title}] Downloaded ({item.SizeDisplay}) -> {destPath}");
+            }
+            catch (PlaudAuthException ex)
+            {
+                item.Status = "Auth failed";
+                Log($"[{item.Title}] AUTH ERROR: {ex.Message}");
+                Avalonia.Threading.Dispatcher.UIThread.Post(HandleAuthFailure);
+                _downloadCts?.Cancel();
             }
             catch (OperationCanceledException)
             {
