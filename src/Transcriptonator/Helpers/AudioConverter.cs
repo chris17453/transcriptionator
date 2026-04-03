@@ -1,3 +1,5 @@
+using System.Diagnostics;
+using System.Runtime.InteropServices;
 using NAudio.Wave;
 using NAudio.Wave.SampleProviders;
 
@@ -14,33 +16,42 @@ public static class AudioConverter
 
     /// <summary>
     /// Converts an audio file to a 16kHz mono WAV file suitable for Whisper.
-    /// Supports MP3, WAV, AIFF, and other formats via NAudio.
+    /// Uses ffmpeg on Linux (NAudio's Mp3FileReader requires Windows ACM codecs).
+    /// Falls back to NAudio on Windows.
     /// Returns the path to the temporary WAV file.
     /// </summary>
     public static async Task<string> ConvertToWavAsync(string audioPath, CancellationToken ct = default)
     {
-        var wavPath = Path.Combine(Path.GetTempPath(), $"transcriptonator_{Guid.NewGuid():N}.wav");
+        var tempDir = Path.Combine(Path.GetTempPath(), "transcriptonator");
+        Directory.CreateDirectory(tempDir);
 
-        await Task.Run(() =>
+        // Copy source to temp so we never touch the original
+        var tempId = Guid.NewGuid().ToString("N");
+        var ext = Path.GetExtension(audioPath);
+        var tempCopy = Path.Combine(tempDir, $"{tempId}{ext}");
+        var wavPath = Path.Combine(tempDir, $"{tempId}.wav");
+
+        await using (var src = File.OpenRead(audioPath))
+        await using (var dst = File.Create(tempCopy))
         {
-            using var reader = CreateReader(audioPath);
-            ISampleProvider sampleProvider = reader.ToSampleProvider();
+            await src.CopyToAsync(dst, ct);
+        }
 
-            // Convert to mono if stereo
-            if (sampleProvider.WaveFormat.Channels > 1)
+        try
+        {
+            if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
             {
-                sampleProvider = new StereoToMonoSampleProvider(sampleProvider);
+                await ConvertWithFfmpegAsync(tempCopy, wavPath, ct);
             }
-
-            // Resample to 16kHz using WDL resampler (cross-platform, no MediaFoundation)
-            if (sampleProvider.WaveFormat.SampleRate != 16000)
+            else
             {
-                sampleProvider = new WdlResamplingSampleProvider(sampleProvider, 16000);
+                await ConvertWithNAudioAsync(tempCopy, wavPath, ct);
             }
-
-            // Write as 16-bit PCM WAV
-            WaveFileWriter.CreateWaveFile16(wavPath, sampleProvider);
-        }, ct);
+        }
+        finally
+        {
+            try { File.Delete(tempCopy); } catch { }
+        }
 
         return wavPath;
     }
@@ -50,8 +61,80 @@ public static class AudioConverter
     /// </summary>
     public static double GetDurationSeconds(string audioPath)
     {
+        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+        {
+            return GetDurationWithFfprobe(audioPath);
+        }
+
         using var reader = CreateReader(audioPath);
         return reader.TotalTime.TotalSeconds;
+    }
+
+    private static async Task ConvertWithFfmpegAsync(string inputPath, string outputPath, CancellationToken ct)
+    {
+        var psi = new ProcessStartInfo
+        {
+            FileName = "ffmpeg",
+            ArgumentList = { "-i", inputPath, "-ar", "16000", "-ac", "1", "-c:a", "pcm_s16le", "-y", outputPath },
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+            CreateNoWindow = true
+        };
+
+        using var process = Process.Start(psi)
+            ?? throw new InvalidOperationException("Failed to start ffmpeg. Is it installed?");
+
+        await process.WaitForExitAsync(ct);
+
+        if (process.ExitCode != 0)
+        {
+            var stderr = await process.StandardError.ReadToEndAsync(ct);
+            throw new InvalidOperationException($"ffmpeg failed (exit {process.ExitCode}): {stderr}");
+        }
+    }
+
+    private static double GetDurationWithFfprobe(string audioPath)
+    {
+        var psi = new ProcessStartInfo
+        {
+            FileName = "ffprobe",
+            ArgumentList = { "-v", "quiet", "-show_entries", "format=duration", "-of", "csv=p=0", audioPath },
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+            CreateNoWindow = true
+        };
+
+        using var process = Process.Start(psi);
+        if (process == null) return 0;
+
+        var output = process.StandardOutput.ReadToEnd().Trim();
+        process.WaitForExit();
+
+        return double.TryParse(output, System.Globalization.NumberStyles.Float,
+            System.Globalization.CultureInfo.InvariantCulture, out var duration) ? duration : 0;
+    }
+
+    private static async Task ConvertWithNAudioAsync(string audioPath, string wavPath, CancellationToken ct)
+    {
+        await Task.Run(() =>
+        {
+            using var reader = CreateReader(audioPath);
+            ISampleProvider sampleProvider = reader.ToSampleProvider();
+
+            if (sampleProvider.WaveFormat.Channels > 1)
+            {
+                sampleProvider = new StereoToMonoSampleProvider(sampleProvider);
+            }
+
+            if (sampleProvider.WaveFormat.SampleRate != 16000)
+            {
+                sampleProvider = new WdlResamplingSampleProvider(sampleProvider, 16000);
+            }
+
+            WaveFileWriter.CreateWaveFile16(wavPath, sampleProvider);
+        }, ct);
     }
 
     private static WaveStream CreateReader(string path)
@@ -61,8 +144,6 @@ public static class AudioConverter
         {
             ".wav" => new WaveFileReader(path),
             ".aiff" or ".aif" => new AiffFileReader(path),
-            // Mp3FileReader handles MP3; AudioFileReader handles anything
-            // the platform supports (WMA/M4A/OGG/FLAC via MediaFoundation on Windows)
             ".mp3" => new Mp3FileReader(path),
             _ => new AudioFileReader(path),
         };

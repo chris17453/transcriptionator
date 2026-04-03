@@ -12,4 +12,5 @@ public class AppConfig
     public int ChunkOverlap { get; set; } = 100;
     public int RagTopK { get; set; } = 5;
     public int MaxConcurrentPlaudDownloads { get; set; } = 3;
+    public string LastImportPath { get; set; } = string.Empty;
 }

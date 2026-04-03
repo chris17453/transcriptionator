@@ -38,7 +38,7 @@ public partial class SettingsViewModel : ViewModelBase
 
     public ObservableCollection<string> WhisperModelSizes { get; } = new()
     {
-        "tiny", "base", "small", "medium"
+        "tiny", "base", "small", "medium", "large"
     };
 
     public SettingsViewModel(IConfigService configService, IModelManagerService modelManager)

@@ -67,6 +67,7 @@ public class ModelManagerService : IModelManagerService
             GgmlType.Base => 142_000_000L,
             GgmlType.Small => 466_000_000L,
             GgmlType.Medium => 1_500_000_000L,
+            GgmlType.LargeV3 => 3_100_000_000L,
             _ => 466_000_000L
         };
 

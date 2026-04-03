@@ -99,7 +99,7 @@ public partial class App : Application
         services.AddTransient<IFileTrackingService, FileTrackingService>();
 
         // AI services
-        services.AddTransient<ITranscriptionService, TranscriptionService>();
+        services.AddSingleton<ITranscriptionService, TranscriptionService>();
         services.AddSingleton<IEmbeddingService, EmbeddingService>();
         services.AddSingleton<IVectorSearchService, VectorSearchService>();
         services.AddSingleton<ILlmService, LlmService>();
